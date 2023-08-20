@@ -1,0 +1,8 @@
+# Ignore build folder
+/build
+
+# Ignore imgs folder
+/imgs
+
+# Ignore cache folder
+.cache/
