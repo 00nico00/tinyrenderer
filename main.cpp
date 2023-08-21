@@ -1,7 +1,11 @@
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <iostream>
+#include <limits>
 #include <memory>
+#include <vector>
 
 #include "geometry.h"
 #include "model.h"
@@ -11,6 +15,7 @@ constexpr const char* DEFAULT_PATH = "../../imgs/output.tga";
 
 const TGAColor white(255, 255, 255, 255);
 const TGAColor red(255, 0, 0, 255);
+const TGAColor green(0, 255, 0, 255);
 
 constexpr int width = 800;
 constexpr int height = 800;
@@ -39,6 +44,68 @@ void line(int x0, int y0, int x1, int y1, TGAImage& image, const TGAColor& color
     }
 }
 
+bool inside_triangle(const Vec3f& p, const std::array<Vec3f, 3>& t) {
+    bool clockwise = cross(t[1] - t[0], t[2] - t[0]).z > 0;
+    Vec3f e0 = t[1] - t[0], e1 = t[2] - t[1], e2 = t[0] - t[2];
+    Vec3f p0 = p - t[0], p1 = p - t[1], p2 = p - t[2];
+    if (clockwise) {
+        return cross(e0, p0).z > 0 && cross(e1, p1).z > 0 && cross(e2, p2).z > 0;
+    }
+    return cross(e0, p0).z < 0 && cross(e1, p1).z < 0 && cross(e2, p2).z < 0;
+}
+
+// Vec3f world_to_screen(const Vec3f& v) {
+//     return Vec3f{(v.x + 1) * width / 2 + 0.5f, (v.y + 1) * height / 2 + 0.5f, v.z};
+// }
+
+Vec3f world2screen(Vec3f v) {
+    return Vec3f(int((v.x + 1.) * width / 2. + .5), int((v.y + 1.) * height / 2. + .5), v.z);
+}
+
+std::tuple<float, float, float> barycentric2D(float x, float y,
+                                              const std::array<Vec3f, 3>& v) {
+    float c1 =
+        (x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * y + v[1].x * v[2].y - v[2].x * v[1].y) /
+        (v[0].x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * v[0].y + v[1].x * v[2].y -
+         v[2].x * v[1].y);
+    float c2 =
+        (x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * y + v[2].x * v[0].y - v[0].x * v[2].y) /
+        (v[1].x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * v[1].y + v[2].x * v[0].y -
+         v[0].x * v[2].y);
+    float c3 =
+        (x * (v[0].y - v[1].y) + (v[1].x - v[0].x) * y + v[0].x * v[1].y - v[1].x * v[0].y) /
+        (v[2].x * (v[0].y - v[1].y) + (v[1].x - v[0].x) * v[2].y + v[0].x * v[1].y -
+         v[1].x * v[0].y);
+    return {c1, c2, c3};
+}
+
+void triangle(std::array<Vec3f, 3>& pts, std::vector<float>& zbuffer, TGAImage& image,
+              const TGAColor& color) {
+    // construct boundingbox
+    float min_x = std::max(0.0f, std::min({pts[0].x, pts[1].x, pts[2].x}));
+    float min_y = std::max(0.0f, std::min({pts[0].y, pts[1].y, pts[2].y}));
+    float max_x = std::min(static_cast<float>(image.get_width() - 1),
+                           std::max({pts[0].x, pts[1].x, pts[2].x}));
+    float max_y = std::min(static_cast<float>(image.get_height() - 1),
+                           std::max({pts[0].y, pts[1].y, pts[2].y}));
+
+    for (float x = min_x; x <= max_x; x += 0.5) {
+        for (float y = min_y; y <= max_y; y += 0.5) {
+            if (!inside_triangle({x + 0.5f, y + 0.5f, 0}, pts)) {
+                continue;
+            }
+
+            auto [alpha, beta, gamma] = barycentric2D(x + 0.5, y + 0.5, pts);
+            float z = pts[0].z * alpha + pts[1].z * beta + pts[2].z * gamma;
+
+            if (zbuffer[static_cast<int>(x + y * width)] < z) {
+                zbuffer[static_cast<int>(x + y * width)] = z;
+                image.set(x, y, color);
+            }
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     std::unique_ptr<Model> model{nullptr};
     // construct model
@@ -48,26 +115,27 @@ int main(int argc, char** argv) {
         model = std::make_unique<Model>("../../obj/african_head.obj");
     }
 
-    // construct .tga
+    Vec3f light_dir{0, 0, -1};
+    std::vector<float> zbuffer(width * height, std::numeric_limits<float>::min());
+
     TGAImage image{width, height, TGAImage::RGB};
-    // for each face
     for (int i = 0; i < model->nfaces(); i++) {
-        // store the three vertexs of every face
         auto face = model->face(i);
+        std::array<Vec3f, 3> screen_coords{};
+        std::array<Vec3f, 3> world_coords{};
         for (int j = 0; j < 3; j++) {
-            // vertex v0
-            auto v0 = model->vert(face[j]);
-            // v1
-            auto v1 = model->vert(face[(j + 1) % 3]);
-            // Draw lines from the vertices v0 and v1
-            // Convert model coordinates to screen coordinates.
-            // [-1, 1]^2 to [0, width] X [0, height]
-            int x0 = (v0.x + 1.0) * width / 2;
-            int y0 = (v0.y + 1.0) * height / 2;
-            int x1 = (v1.x + 1.0) * width / 2;
-            int y1 = (v1.y + 1.0) * height / 2;
-            // draw line
-            line(x0, y0, x1, y1, image, white);
+            Vec3f v = model->vert(face[j]);
+            screen_coords[j] = world2screen(model->vert(face[j]));
+            world_coords[j] = v;
+        }
+        Vec3f n =
+            cross((world_coords[2] - world_coords[0]), (world_coords[1] - world_coords[0]));
+        n.normalize();
+
+        float intensity = n * light_dir;
+        if (intensity > 0) {
+            triangle(screen_coords, zbuffer, image,
+                     TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
         }
     }
 
