@@ -61,19 +61,16 @@ Vec3f world_to_screen(const Vec3f& v) {
 std::tuple<float, float, float> barycentric2D(float x, float y,
                                               const std::array<Vec3f, 3>& v) {
     float c1 =
-        (x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * y + v[1].x * v[2].y - v[2].x *
-        v[1].y) / (v[0].x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * v[0].y + v[1].x *
-        v[2].y -
+        (x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * y + v[1].x * v[2].y - v[2].x * v[1].y) /
+        (v[0].x * (v[1].y - v[2].y) + (v[2].x - v[1].x) * v[0].y + v[1].x * v[2].y -
          v[2].x * v[1].y);
     float c2 =
-        (x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * y + v[2].x * v[0].y - v[0].x *
-        v[2].y) / (v[1].x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * v[1].y + v[2].x *
-        v[0].y -
+        (x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * y + v[2].x * v[0].y - v[0].x * v[2].y) /
+        (v[1].x * (v[2].y - v[0].y) + (v[0].x - v[2].x) * v[1].y + v[2].x * v[0].y -
          v[0].x * v[2].y);
     float c3 =
-        (x * (v[0].y - v[1].y) + (v[1].x - v[0].x) * y + v[0].x * v[1].y - v[1].x *
-        v[0].y) / (v[2].x * (v[0].y - v[1].y) + (v[1].x - v[0].x) * v[2].y + v[0].x *
-        v[1].y -
+        (x * (v[0].y - v[1].y) + (v[1].x - v[0].x) * y + v[0].x * v[1].y - v[1].x * v[0].y) /
+        (v[2].x * (v[0].y - v[1].y) + (v[1].x - v[0].x) * v[2].y + v[0].x * v[1].y -
          v[1].x * v[0].y);
     return {c1, c2, c3};
 }
@@ -84,9 +81,9 @@ void triangle(std::array<Vec3f, 3>& pts, std::vector<float>& zbuffer, TGAImage& 
     int min_x = std::floor(std::max(0.0f, std::min({pts[0].x, pts[1].x, pts[2].x})));
     int min_y = std::floor(std::max(0.0f, std::min({pts[0].y, pts[1].y, pts[2].y})));
     int max_x = std::ceil(std::min(static_cast<float>(image.get_width() - 1),
-                           std::max({pts[0].x, pts[1].x, pts[2].x})));
+                                   std::max({pts[0].x, pts[1].x, pts[2].x})));
     int max_y = std::ceil(std::min(static_cast<float>(image.get_height() - 1),
-                           std::max({pts[0].y, pts[1].y, pts[2].y})));
+                                   std::max({pts[0].y, pts[1].y, pts[2].y})));
 
     for (int x = min_x; x <= max_x; x++) {
         for (int y = min_y; y <= max_y; y++) {
@@ -114,7 +111,7 @@ int main(int argc, char** argv) {
         model = std::make_unique<Model>("../../obj/african_head.obj");
     }
 
-    Vec3f light_dir{0, 0, -1};
+    Vec3f light_dir{0, 0, 1};
     std::vector<float> zbuffer(width * height, std::numeric_limits<float>::lowest());
 
     TGAImage image{width, height, TGAImage::RGB};
@@ -128,7 +125,7 @@ int main(int argc, char** argv) {
             world_coords[j] = v;
         }
         Vec3f n =
-            cross((world_coords[2] - world_coords[0]), (world_coords[1] - world_coords[0]));
+            cross((world_coords[1] - world_coords[0]), (world_coords[2] - world_coords[0]));
         n.normalize();
 
         float intensity = n * light_dir;
