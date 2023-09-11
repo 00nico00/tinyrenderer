@@ -5,7 +5,6 @@
 #include <iostream>
 #include <vector>
 
-
 template <>
 template <>
 Vec3<int>::Vec3(const Vec3<float>& v)
