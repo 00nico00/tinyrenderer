@@ -45,13 +45,13 @@ void line(int x0, int y0, int x1, int y1, TGAImage& image, const TGAColor& color
 }
 
 bool inside_triangle(const Vec3f& p, const std::array<Vec3f, 3>& t) {
-    bool clockwise = cross(t[1] - t[0], t[2] - t[0]).z > 0;
+    bool clockwise = ((t[1] - t[0]) ^ (t[2] - t[0])).z > 0;
     Vec3f e0 = t[1] - t[0], e1 = t[2] - t[1], e2 = t[0] - t[2];
     Vec3f p0 = p - t[0], p1 = p - t[1], p2 = p - t[2];
     if (clockwise) {
-        return cross(e0, p0).z > 0 && cross(e1, p1).z > 0 && cross(e2, p2).z > 0;
+        return (e0 ^ p0).z > 0 && (e1 ^ p1).z > 0 && (e2 ^ p2).z > 0;
     }
-    return cross(e0, p0).z < 0 && cross(e1, p1).z < 0 && cross(e2, p2).z < 0;
+    return (e0 ^ p0).z < 0 && (e1 ^ p1).z < 0 && (e2 ^ p2).z < 0;
 }
 
 Vec3f world_to_screen(const Vec3f& v) {
@@ -124,8 +124,7 @@ int main(int argc, char** argv) {
             screen_coords[j] = world_to_screen(model->vert(face[j]));
             world_coords[j] = v;
         }
-        Vec3f n =
-            cross((world_coords[1] - world_coords[0]), (world_coords[2] - world_coords[0]));
+        Vec3f n = (world_coords[1] - world_coords[0]) ^ (world_coords[2] - world_coords[0]);
         n.normalize();
 
         float intensity = n * light_dir;
